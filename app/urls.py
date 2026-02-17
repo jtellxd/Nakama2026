@@ -16,13 +16,10 @@ urlpatterns = [
     path('qr/<str:codigo_qr>/', views.registrar_asistencia_qr, name='registrar_asistencia_qr'),
     path('api/buscar-empleado-qr/', views.api_buscar_empleado_qr, name='api_buscar_empleado_qr'),
 
-    # QR general: auto-identificación por dispositivo
+    # QR general: auto-identificación por dispositivo (API en control_asistencia/urls.py)
     path('auto/', views.identificar_dispositivo, name='identificar_dispositivo'),
     path('auto/empleado/<int:empleado_id>/', views.registrar_asistencia_auto, name='registrar_asistencia_auto'),
-    path('api/identificar-fingerprint/', views.api_identificar_por_fingerprint, name='api_identificar_por_fingerprint'),
-    path('api/vincular-fingerprint/', views.api_vincular_fingerprint, name='api_vincular_fingerprint'),
-    path('api/desvincular-fingerprint/', views.api_desvincular_fingerprint, name='api_desvincular_fingerprint'),
-    
+
     # Reportes (solo para staff)
     path('login/descarga/', views.pagina_descarga_excel, name='pagina_descarga_excel'),
     path('login/descargar/asistencia', views.exportar_asistencia_excel, name='descargar_excel'),

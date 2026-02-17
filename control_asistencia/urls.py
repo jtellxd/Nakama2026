@@ -17,9 +17,18 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from django.contrib.auth import views as auth_views
+from app.views import (
+    api_identificar_por_fingerprint,
+    api_vincular_fingerprint,
+    api_desvincular_fingerprint,
+)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('login/', auth_views.LoginView.as_view(template_name='login.html'), name='login'),
-    path('', include('app.urls')),  
+    # API explícita en raíz para evitar 404 en despliegue (proxy, etc.)
+    path('api/identificar-fingerprint/', api_identificar_por_fingerprint, name='api_identificar_por_fingerprint'),
+    path('api/vincular-fingerprint/', api_vincular_fingerprint, name='api_vincular_fingerprint'),
+    path('api/desvincular-fingerprint/', api_desvincular_fingerprint, name='api_desvincular_fingerprint'),
+    path('', include('app.urls')),
 ]
