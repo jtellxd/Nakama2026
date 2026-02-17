@@ -17,9 +17,9 @@ RUN pip install --no-cache-dir -r requirements.txt gunicorn
 
 COPY . .
 
-# No ejecutamos migrate/collectstatic aquí; se hacen al arrancar con las variables ya disponibles.
+# Collectstatic en build (solo para esta línea: sin DATABASE_URL usa SQLite) → arranque más rápido en runtime.
+RUN DATABASE_URL= SECRET_KEY=build python manage.py collectstatic --noinput --no-color 2>/dev/null || true
+
 EXPOSE 8000
-# Si collectstatic falla (ej. manifest), igual arrancamos gunicorn para que la app responda.
-CMD python manage.py migrate --noinput && \
-    (python manage.py collectstatic --noinput || true) && \
-    gunicorn control_asistencia.wsgi --bind 0.0.0.0:${PORT:-8000}
+# Arranque: solo migrate + gunicorn. Railway inyecta PORT; debe escuchar en 0.0.0.0:PORT.
+CMD python manage.py migrate --noinput && exec gunicorn control_asistencia.wsgi --bind 0.0.0.0:${PORT:-8000}
