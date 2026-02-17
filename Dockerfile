@@ -20,6 +20,5 @@ COPY . .
 # Collectstatic en build (solo para esta línea: sin DATABASE_URL usa SQLite) → arranque más rápido en runtime.
 RUN DATABASE_URL= SECRET_KEY=build python manage.py collectstatic --noinput --no-color 2>/dev/null || true
 
-EXPOSE 8000
-# Arranque: solo migrate + gunicorn. Railway inyecta PORT; debe escuchar en 0.0.0.0:PORT.
-CMD python manage.py migrate --noinput && exec gunicorn control_asistencia.wsgi --bind 0.0.0.0:${PORT:-8000}
+# Railway inyecta PORT dinamicamente
+CMD python manage.py migrate --noinput && gunicorn control_asistencia.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers 2 --timeout 120 --log-level info
