@@ -1,1 +1,1 @@
-web: python manage.py migrate --noinput && (python manage.py collectstatic --noinput || true) && gunicorn control_asistencia.wsgi --bind 0.0.0.0:$PORT
+web: python manage.py migrate --noinput && python manage.py collectstatic --noinput && gunicorn control_asistencia.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers 2 --timeout 120 --log-level info
