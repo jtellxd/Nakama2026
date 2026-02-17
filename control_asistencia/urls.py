@@ -17,13 +17,18 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from django.contrib.auth import views as auth_views
+from django.http import JsonResponse
 from app.views import (
     api_identificar_por_fingerprint,
     api_vincular_fingerprint,
     api_desvincular_fingerprint,
 )
 
+def health_check(request):
+    return JsonResponse({"status": "ok"})
+
 urlpatterns = [
+    path('health/', health_check, name='health_check'),
     path('admin/', admin.site.urls),
     path('login/', auth_views.LoginView.as_view(template_name='login.html'), name='login'),
     # API explícita en raíz para evitar 404 en despliegue (proxy, etc.)
