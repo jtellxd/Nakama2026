@@ -7,9 +7,9 @@ WORKDIR /app
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
-# Dependencias del sistema para psycopg2
+# Dependencias: psycopg2 + Pillow (libjpeg, zlib)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpq5 \
+    libpq5 libjpeg62-turbo zlib1g \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
@@ -19,6 +19,7 @@ COPY . .
 
 # No ejecutamos migrate/collectstatic aquí; se hacen al arrancar con las variables ya disponibles.
 EXPOSE 8000
+# Si collectstatic falla (ej. manifest), igual arrancamos gunicorn para que la app responda.
 CMD python manage.py migrate --noinput && \
-    python manage.py collectstatic --noinput && \
+    (python manage.py collectstatic --noinput || true) && \
     gunicorn control_asistencia.wsgi --bind 0.0.0.0:${PORT:-8000}
