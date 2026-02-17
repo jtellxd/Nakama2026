@@ -90,65 +90,25 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'control_asistencia.wsgi.application'
 
-DB_LIVE=os.getenv("DB_LIVE")
-DATABASE_URL=os.getenv("DATABASE_URL")
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
-USE_POSTGRES = str(DB_LIVE).lower() in ["1", "true", "yes"]
 
 if DATABASE_URL:
-    # Prefer DATABASE_URL when provided (e.g., Supabase)
-    try:
-        DATABASES = {
-            'default': dj_database_url.config(
-                default=DATABASE_URL,
-                conn_max_age=0,
-                conn_health_checks=True,
-                ssl_require=True,
-            )
-        }
-        # OPTIONS solo para PostgreSQL (evitar error con SQLite)
-        if 'postgresql' in DATABASES['default'].get('ENGINE', ''):
-            DATABASES['default'].setdefault('OPTIONS', {}).update({
-                'sslmode': 'require',
-                'connect_timeout': 10,
-                'options': '-c statement_timeout=30000',
-            })
-    except Exception:
-        # Fall back to explicit variables if URL is invalid
-        if USE_POSTGRES:
-            DATABASES = {
-                'default': {
-                    'ENGINE': 'django.db.backends.postgresql',
-                    'NAME': os.getenv('DB_NAME'),
-                    'USER': os.getenv('DB_USER'),
-                    'PASSWORD': os.getenv('DB_PASSWORD'),
-                    'HOST': os.getenv('DB_HOST'),
-                    'PORT': os.getenv('DB_PORT'),
-                    'OPTIONS': {'sslmode': 'require'},
-                }
-            }
-        else:
-            DATABASES = {
-                'default': {
-                    'ENGINE': 'django.db.backends.sqlite3',
-                    'NAME': BASE_DIR / 'db.sqlite3',
-                }
-            }
-elif USE_POSTGRES:
+    # Supabase pooler configuration
     DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.postgresql',
-            'NAME': os.getenv('DB_NAME'),
-            'USER': os.getenv('DB_USER'),
-            'PASSWORD': os.getenv('DB_PASSWORD'),
-            'HOST': os.getenv('DB_HOST'),
-            'PORT': os.getenv('DB_PORT'),
-            'OPTIONS': {'sslmode': 'require'},
-        }
+        'default': dj_database_url.config(
+            default=DATABASE_URL,
+            conn_max_age=600,  # Mantener conexiones vivas por 10 min
+            conn_health_checks=True,
+            ssl_require=True,
+        )
     }
+    # Configuración específica para Supabase Pooler
+    DATABASES['default'].setdefault('OPTIONS', {})['sslmode'] = 'require'
 else:
+    # SQLite para desarrollo local
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
