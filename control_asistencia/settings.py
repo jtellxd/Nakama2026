@@ -100,13 +100,13 @@ if DATABASE_URL:
     DATABASES = {
         'default': dj_database_url.config(
             default=DATABASE_URL,
-            conn_max_age=600,  # Mantener conexiones vivas por 10 min
-            conn_health_checks=True,
+            conn_max_age=0,  # Cerrar conexiones despues de cada request (mejor para pooler)
+            conn_health_checks=False,  # Desactivar para evitar problemas de inicio
             ssl_require=True,
         )
     }
-    # Configuración específica para Supabase Pooler
-    DATABASES['default'].setdefault('OPTIONS', {})['sslmode'] = 'require'
+    # Solo sslmode para Supabase, sin opciones adicionales que puedan fallar
+    DATABASES['default']['OPTIONS'] = {'sslmode': 'require'}
 else:
     # SQLite para desarrollo local
     DATABASES = {
