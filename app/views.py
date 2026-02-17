@@ -1,11 +1,10 @@
-from django.shortcuts import render, get_object_or_404, redirect
+from django.shortcuts import render, get_object_or_404
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.http import HttpResponse, JsonResponse
-from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
+from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods
-from django.urls import reverse
-from .models import Empleado, TipoAsistencia, RegistroAsistencia, DispositivoEmpleado, ActividadProyecto
+from .models import Empleado, TipoAsistencia, RegistroAsistencia, DispositivoEmpleado
 from .services import AsistenciaService, ReporteService
 from .qr_service import QRService
 from .utils import obtener_fecha_hora_actual
@@ -54,11 +53,7 @@ def exportar_resumen_excel(request):
     ]
     ws.append(encabezados)
 
-    # Obtener datos usando el servicio
     datos_diarios = ReporteService.obtener_datos_resumen()
-
-    # from .models import ActividadProyecto  # DESHABILITADO: columnas de proyecto/actividad
-    # from django.utils import timezone
 
     for (id_empleado, fecha), data in datos_diarios.items():
         empleado = data["empleado"]
@@ -173,38 +168,6 @@ def exportar_asistencia_excel(request):
         tabla.tableStyleInfo = style
         ws.add_table(tabla)
 
-    # Hoja adicional: Actividades (DESHABILITADA TEMPORALMENTE)
-    # from .models import ActividadProyecto
-    # ws2 = wb.create_sheet(title="Actividades")
-    # ws2.append(["Empleado", "Fecha", "Proyecto", "Actividad", "Hora"])
-
-    # for ap in ActividadProyecto.objects.select_related('empleado').all().order_by('-fecha', '-hora'):
-    #     ws2.append([
-    #         ap.empleado.nombre_completo,
-    #         ap.fecha.strftime('%Y-%m-%d'),
-    #         ap.proyecto,
-    #         ap.actividad,
-    #         ap.hora.strftime('%H:%M:%S'),
-    #     ])
-
-    # # Ajustar ancho y tabla hoja 2
-    # for col in ws2.columns:
-    #     max_length = max(len(str(cell.value)) for cell in col if cell.value)
-    #     ws2.column_dimensions[col[0].column_letter].width = max_length + 2
-
-    # if ws2.max_row > 1:
-    #     tabla2 = Table(
-    #         displayName="TablaActividades",
-    #         ref=f"A1:E{ws2.max_row}"
-    #     )
-    #     style2 = TableStyleInfo(
-    #         name="TableStyleMedium9", showFirstColumn=False,
-    #         showLastColumn=False, showRowStripes=True, showColumnStripes=False
-    #     )
-    #     tabla2.tableStyleInfo = style2
-    #     ws2.add_table(tabla2)
-
-    # Respuesta
     response = HttpResponse(
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     )
@@ -270,16 +233,6 @@ def registrar_asistencia_qr(request, codigo_qr):
         )
 
         if success:
-            # DESHABILITADO TEMPORALMENTE: flujo de Control de Actividades tras ENTRADA
-            # try:
-            #     if registro.tipo.nombre_asistencia == 'Entrada':
-            #         from django.utils import timezone
-            #         hoy = timezone.localtime().date()
-            #         if not ActividadProyecto.objects.filter(empleado=registro.empleado, fecha=hoy).exists():
-            #             return redirect('control_actividades', empleado_id=registro.empleado.id_empleado)
-            # except Exception:
-            #     pass
-
             messages.success(request, message)
             fecha, hora = obtener_fecha_hora_actual()
             return render(request, 'asistencia_exitosa.html', {
@@ -287,8 +240,7 @@ def registrar_asistencia_qr(request, codigo_qr):
                 'hora': hora,
                 'empleado': registro.empleado
             })
-        else:
-            messages.error(request, message)
+        messages.error(request, message)
 
     return render(request, 'formulario_qr.html', {
         'empleado': empleado,
@@ -321,16 +273,6 @@ def registrar_asistencia_auto(request, empleado_id):
         )
 
         if success:
-            # DESHABILITADO TEMPORALMENTE: flujo de Control de Actividades tras ENTRADA
-            # try:
-            #     if registro.tipo.nombre_asistencia == 'Entrada':
-            #         from django.utils import timezone
-            #         hoy = timezone.localtime().date()
-            #         if not ActividadProyecto.objects.filter(empleado=registro.empleado, fecha=hoy).exists():
-            #             return redirect('control_actividades', empleado_id=registro.empleado.id_empleado)
-            # except Exception:
-            #     pass
-
             messages.success(request, message)
             fecha, hora = obtener_fecha_hora_actual()
             return render(request, 'asistencia_exitosa.html', {
@@ -338,8 +280,7 @@ def registrar_asistencia_auto(request, empleado_id):
                 'hora': hora,
                 'empleado': registro.empleado
             })
-        else:
-            messages.error(request, message)
+        messages.error(request, message)
 
     return render(request, 'formulario_qr.html', {
         'empleado': empleado,
@@ -475,16 +416,6 @@ def registrar_asistencia(request):
         )
 
         if success:
-            # DESHABILITADO TEMPORALMENTE: flujo de Control de Actividades tras ENTRADA
-            # try:
-            #     if registro.tipo.nombre_asistencia == 'Entrada':
-            #         from django.utils import timezone
-            #         hoy = timezone.localtime().date()
-            #         if not ActividadProyecto.objects.filter(empleado=registro.empleado, fecha=hoy).exists():
-            #             return redirect('control_actividades', empleado_id=registro.empleado.id_empleado)
-            # except Exception:
-            #     pass
-
             messages.success(request, message)
             fecha, hora = obtener_fecha_hora_actual()
             return render(request, 'asistencia_exitosa.html', {
@@ -492,57 +423,9 @@ def registrar_asistencia(request):
                 'hora': hora,
                 'empleado': registro.empleado
             })
-        else:
-            messages.error(request, message)
+        messages.error(request, message)
 
     return render(request, 'formulario.html', {
         'empleados': empleados,
         'tipos_evento': tipos_evento
     })
-
-
-# Vista de Control de Actividades DESHABILITADA TEMPORALMENTE.
-# def control_actividades(request, empleado_id):
-#     """
-#     Registrar proyecto y actividad SOLO una vez por día, tras registrar la ENTRADA.
-#     Si ya existe para hoy, se omite y se redirige.
-#     """
-#     from django.utils import timezone
-#     empleado = get_object_or_404(Empleado, id_empleado=empleado_id)
-#     hoy = timezone.localtime().date()
-#
-#     # Si ya existe registro hoy, omitir esta pantalla
-#     if ActividadProyecto.objects.filter(empleado=empleado, fecha=hoy).exists() and request.method == 'GET':
-#         messages.info(request, 'La actividad del día ya fue registrada.')
-#         return redirect('identificar_dispositivo')
-#
-#     if request.method == 'POST':
-#         proyecto = (request.POST.get('proyecto') or '').strip()
-#         actividad = (request.POST.get('actividad') or '').strip()
-#
-#         if not proyecto or not actividad:
-#             messages.error(request, 'Debe completar Proyecto y Actividad.')
-#             return render(request, 'control_actividades.html', {
-#                 'empleado': empleado,
-#                 'proyecto': proyecto,
-#                 'actividad': actividad,
-#             })
-#
-#         # Guardar localmente (único por día)
-#         ActividadProyecto.objects.update_or_create(
-#             empleado=empleado,
-#             fecha=hoy,
-#             defaults={'proyecto': proyecto, 'actividad': actividad}
-#         )
-#         messages.success(request, 'Actividad registrada correctamente.')
-#
-#         # Mostrar pantalla de registro exitoso con datos, como en las otras opciones
-#         from .utils import obtener_fecha_hora_actual
-#         fecha, hora = obtener_fecha_hora_actual()
-#         return render(request, 'asistencia_exitosa.html', {
-#             'fecha': fecha,
-#             'hora': hora,
-#             'empleado': empleado,
-#         })
-#
-#     return render(request, 'control_actividades.html', {'empleado': empleado})

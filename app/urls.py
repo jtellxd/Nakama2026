@@ -22,6 +22,6 @@ urlpatterns = [
 
     # Reportes (solo para staff)
     path('login/descarga/', views.pagina_descarga_excel, name='pagina_descarga_excel'),
-    path('login/descargar/asistencia', views.exportar_asistencia_excel, name='descargar_excel'),
+    path('login/descargar/asistencia/', views.exportar_asistencia_excel, name='descargar_excel'),
     path('login/descargar/resumen/', views.exportar_resumen_excel, name='resumen_excel'),
 ]

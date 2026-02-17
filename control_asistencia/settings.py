@@ -32,11 +32,15 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-build-placeholder-not-for-
 DEBUG = str(os.getenv('DEBUG', 'True')).lower() in ['1', 'true', 'yes', 'on']
 
 
-ALLOWED_HOSTS = ['.onrender.com', '.up.railway.app', 'localhost', '127.0.0.1']
+ALLOWED_HOSTS = ['.onrender.com', '.up.railway.app', '.railway.app', 'localhost', '127.0.0.1']
+
+# Detección correcta de HTTPS detrás de proxy (Railway, Render, etc.)
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 CSRF_TRUSTED_ORIGINS = [
     'https://*.onrender.com',
     'https://*.up.railway.app',
+    'https://*.railway.app',
     'http://127.0.0.1:8000',
     'https://127.0.0.1:8000',
     'http://localhost:8000',
@@ -99,17 +103,18 @@ if DATABASE_URL:
         DATABASES = {
             'default': dj_database_url.config(
                 default=DATABASE_URL,
-                conn_max_age=0,  # No mantener conexiones persistentes con pgbouncer
-                conn_health_checks=True,  # Verificar salud de conexiones
+                conn_max_age=0,
+                conn_health_checks=True,
                 ssl_require=True,
             )
         }
-        # Optimización adicional para pgbouncer
-        DATABASES['default']['OPTIONS'] = {
-            'sslmode': 'require',
-            'connect_timeout': 10,
-            'options': '-c statement_timeout=30000'  # 30 segundos timeout
-        }
+        # OPTIONS solo para PostgreSQL (evitar error con SQLite)
+        if 'postgresql' in DATABASES['default'].get('ENGINE', ''):
+            DATABASES['default'].setdefault('OPTIONS', {}).update({
+                'sslmode': 'require',
+                'connect_timeout': 10,
+                'options': '-c statement_timeout=30000',
+            })
     except Exception:
         # Fall back to explicit variables if URL is invalid
         if USE_POSTGRES:
@@ -152,30 +157,6 @@ else:
     }
 
 
-# if DB_LIVE in [False,"False"]:
-
-#     DATABASES = {
-#         'default': {
-#             'ENGINE': 'django.db.backends.sqlite3',
-#             'NAME': BASE_DIR / 'db.sqlite3',
-#         }
-#     }
-
-# else:
-
-#     DATABASES = {
-#         'default': {
-#             'ENGINE': 'django.db.backends.postgresql',
-#             'NAME': os.getenv("DB_NAME"),       # Nombre de la base de datos
-#             'USER': os.getenv("DB_USER"),               # Nuevo nombre de usuario
-#             'PASSWORD': os.getenv("DB_PASSWORD"),             # Nueva contraseña
-#             'HOST': os.getenv("DB_HOST"),              # Dirección del servidor
-#             'PORT': os.getenv("DB_PORT"),                     # Puerto por defecto de PostgreSQL
-#         }
-#     }
-
-
-
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
 
@@ -198,9 +179,9 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/5.1/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'es-pe'
 
-TIME_ZONE = 'America/Lima'
+TIME_ZONE = os.getenv('TIME_ZONE', 'America/Lima')
 
 USE_I18N = True
 

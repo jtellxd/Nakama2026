@@ -6,8 +6,6 @@ Contiene la lógica de negocio separada de las vistas.
 from datetime import datetime, timedelta
 from collections import defaultdict
 from django.utils import timezone
-from django.contrib import messages
-from django.db.models import Q
 from .models import Empleado, TipoAsistencia, RegistroAsistencia, DispositivoEmpleado
 
 
@@ -176,7 +174,7 @@ class ReporteService:
         def get_times(key: str):
             k = key.lower()
             for existente, tiempos in data.items():
-                if str(existente).lower() == k:
+                if str(existente).lower() == k and isinstance(tiempos, list):
                     return tiempos
             return []
 
