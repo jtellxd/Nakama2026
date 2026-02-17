@@ -1,24 +1,25 @@
-# Build: solo instala dependencias. No ejecuta Django → no necesita SECRET_KEY.
-# SECRET_KEY y DATABASE_URL se usan solo al arrancar (runtime).
-FROM python:3.13-slim
+FROM python:3.11-slim
 
 WORKDIR /app
 
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
-# Dependencias: psycopg2 + Pillow (libjpeg, zlib)
+# Dependencias del sistema
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpq5 libjpeg62-turbo zlib1g \
+    libpq5 libjpeg62-turbo zlib1g bash \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt gunicorn
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Collectstatic en build (solo para esta línea: sin DATABASE_URL usa SQLite) → arranque más rápido en runtime.
+# Hacer ejecutable el script de inicio
+RUN chmod +x start.sh
+
+# Collectstatic en build
 RUN DATABASE_URL= SECRET_KEY=build python manage.py collectstatic --noinput --no-color 2>/dev/null || true
 
-# Railway inyecta PORT dinamicamente
-CMD python manage.py migrate --noinput && gunicorn control_asistencia.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers 2 --timeout 120 --log-level info
+# Usar el script de inicio
+CMD ["./start.sh"]
