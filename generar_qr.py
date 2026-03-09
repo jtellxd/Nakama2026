@@ -5,7 +5,7 @@ import qrcode
 # Ejemplos:
 # - Local: http://127.0.0.1:8000/
 # - Railway: https://<tu-subdominio>.up.railway.app/
-BASE_URL = os.getenv("APP_URL", "http://127.0.0.1:8000/")
+BASE_URL = os.getenv("APP_URL", "https://web-production-d728d.up.railway.app/")   
 
 # Ruta de destino del formulario de asistencia (por defecto QR general)
 DEST_PATH = os.getenv("APP_ENTRY_PATH", "/auto/")

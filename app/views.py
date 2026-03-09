@@ -9,8 +9,10 @@ from .services import AsistenciaService, ReporteService
 from .qr_service import QRService
 from .utils import obtener_fecha_hora_actual
 import openpyxl
-from openpyxl.styles import Font, PatternFill, Border, Side
+from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
 from openpyxl.worksheet.table import Table, TableStyleInfo
+from datetime import timedelta
+from django.utils import timezone
 import json
 
 
@@ -38,69 +40,119 @@ def pagina_descarga_excel(request):
 @user_passes_test(es_staff)
 def exportar_resumen_excel(request):
     """
-    Exporta un resumen diario de asistencia en formato Excel.
-    Incluye Proyecto y Actividad (si existen) para la ENTRADA de ese día.
+    Exporta un resumen de asistencia en formato Excel.
+    Una hoja por empleado con su información, mostrando todos los días del rango
+    (incluso los días sin registros, con la fecha siempre presente).
     """
     wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = "Resumen Diario"
+    wb.remove(wb.active)  # Eliminar hoja vacía por defecto
 
-    # Encabezados (sin Proyecto/Actividad mientras la funcionalidad está deshabilitada)
-    encabezados = [
-        "Empleado", "Fecha", "Tiempo de Almuerzo",
-        "Horas por Comisión", "Horas por Permiso (Otros)",
-        "Horas Trabajadas Totales"
-    ]
-    ws.append(encabezados)
-
-    datos_diarios = ReporteService.obtener_datos_resumen()
-
-    for (id_empleado, fecha), data in datos_diarios.items():
-        empleado = data["empleado"]
-        horas = ReporteService.calcular_horas_empleado(data)
-
-        # Columnas de proyecto/actividad deshabilitadas temporalmente
-        ws.append([
-            empleado.nombre_completo,
-            fecha.strftime("%Y-%m-%d"),
-            horas['almuerzo'],
-            horas['comision'],
-            horas['permiso'],
-            horas['trabajadas']
-        ])
-
-    # Ajustar ancho de columnas
-    for col in ws.columns:
-        max_length = max(len(str(cell.value)) for cell in col if cell.value)
-        ws.column_dimensions[col[0].column_letter].width = max_length + 2
-
-    # Aplicar estilo al encabezado
+    # Estilos
+    titulo_font = Font(bold=True, color="FFFFFF", size=12)
+    titulo_fill = PatternFill("solid", fgColor="1F3864")
+    info_label_font = Font(bold=True)
     header_font = Font(bold=True, color="FFFFFF")
     header_fill = PatternFill("solid", fgColor="4F81BD")
+    sin_registro_fill = PatternFill("solid", fgColor="F2F2F2")
     thin_border = Border(
         left=Side(style='thin'), right=Side(style='thin'),
         top=Side(style='thin'), bottom=Side(style='thin')
     )
 
-    for cell in ws[1]:
-        cell.font = header_font
-        cell.fill = header_fill
-        cell.border = thin_border
+    # Rango de fechas: desde el primer registro hasta hoy
+    primera_fecha = RegistroAsistencia.objects.order_by('fecha_registro') \
+        .values_list('fecha_registro', flat=True).first()
+    hoy = timezone.localtime().date()
 
-    # Crear tabla solo si hay datos (al menos 1 fila de datos)
-    if ws.max_row > 1:
-        tabla = Table(
-            displayName="ResumenAsistencia",
-            ref=f"A1:F{ws.max_row}"
-        )
-        style = TableStyleInfo(
-            name="TableStyleMedium9", showFirstColumn=False,
-            showLastColumn=False, showRowStripes=True, showColumnStripes=False
-        )
-        tabla.tableStyleInfo = style
-        ws.add_table(tabla)
+    if primera_fecha:
+        dias_total = (hoy - primera_fecha).days + 1
+        todas_las_fechas = [primera_fecha + timedelta(days=i) for i in range(dias_total)]
+    else:
+        todas_las_fechas = [hoy]
 
-    # Enviar archivo
+    # Obtener todos los registros agrupados
+    datos_diarios = ReporteService.obtener_datos_resumen()
+
+    # Obtener todos los empleados
+    empleados = Empleado.objects.order_by('apellidos', 'nombres')
+
+    if not empleados.exists():
+        ws = wb.create_sheet("Sin Datos")
+        ws.append(["No hay empleados registrados."])
+    else:
+        for empleado in empleados:
+            # Nombre de la hoja (máx 31 chars, sin caracteres inválidos para Excel)
+            chars_invalidos = ['/', '\\', '?', '*', '[', ']', ':']
+            nombre_hoja = f"{empleado.apellidos}, {empleado.nombres}"
+            for c in chars_invalidos:
+                nombre_hoja = nombre_hoja.replace(c, '-')
+            nombre_hoja = nombre_hoja[:31]
+
+            ws = wb.create_sheet(title=nombre_hoja)
+
+            # --- Fila 1: Título ---
+            ws.append(["REPORTE DE ASISTENCIA"])
+            ws.merge_cells('A1:E1')
+            ws['A1'].font = titulo_font
+            ws['A1'].fill = titulo_fill
+            ws['A1'].alignment = Alignment(horizontal='center')
+
+            # --- Filas 2-5: Información del empleado ---
+            ws.append(["Nombre completo:", empleado.nombre_completo])
+            ws['A2'].font = info_label_font
+            ws.append(["Apellidos:", empleado.apellidos])
+            ws['A3'].font = info_label_font
+            ws.append(["Nombres:", empleado.nombres])
+            ws['A4'].font = info_label_font
+            ws.append(["Código QR:", empleado.codigo_qr or "No asignado"])
+            ws['A5'].font = info_label_font
+
+            # --- Fila 6: Espacio en blanco ---
+            ws.append([])
+
+            # --- Fila 7: Encabezados de columnas ---
+            encabezados = [
+                "Fecha", "Tiempo de Almuerzo",
+                "Horas por Comisión", "Horas por Permiso (Otros)",
+                "Horas Trabajadas Totales"
+            ]
+            ws.append(encabezados)
+            fila_encabezado = ws.max_row
+            for cell in ws[fila_encabezado]:
+                cell.font = header_font
+                cell.fill = header_fill
+                cell.border = thin_border
+
+            # --- Filas de datos: un día por fila ---
+            for fecha in todas_las_fechas:
+                key = (empleado.id_empleado, fecha)
+                if key in datos_diarios:
+                    data = datos_diarios[key]
+                    horas = ReporteService.calcular_horas_empleado(data)
+                    ws.append([
+                        fecha.strftime("%Y-%m-%d"),
+                        horas['almuerzo'],
+                        horas['comision'],
+                        horas['permiso'],
+                        horas['trabajadas']
+                    ])
+                else:
+                    # Día sin registro: fecha presente, resto vacío
+                    ws.append([
+                        fecha.strftime("%Y-%m-%d"),
+                        "", "", "", ""
+                    ])
+                    for cell in ws[ws.max_row]:
+                        cell.fill = sin_registro_fill
+
+            # Ajustar ancho de columnas
+            for col in ws.columns:
+                max_length = max(
+                    (len(str(cell.value)) for cell in col if cell.value),
+                    default=10
+                )
+                ws.column_dimensions[col[0].column_letter].width = max(max_length + 2, 20)
+
     response = HttpResponse(
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     )

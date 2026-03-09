@@ -20,6 +20,14 @@
         <span class="glow-line gl2"></span>
         <div class="brand-bar mb-2"><span class="brand-pill"><img src="{% static 'img/logo-calidad.svg' %}" alt="Nakama">NAKAMA • Acceso</span></div>
         <h3 class="text-center title-gradient mb-3">Iniciar Sesión</h3>
+
+        {% if form.errors %}
+        <div class="alert alert-danger py-2" role="alert">
+          <i class="bi bi-exclamation-circle me-1"></i>
+          Usuario o contraseña incorrectos. Intenta de nuevo.
+        </div>
+        {% endif %}
+
         <form method="post" novalidate>
           {% csrf_token %}
 
