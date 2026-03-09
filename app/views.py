@@ -147,12 +147,14 @@ def exportar_resumen_excel(request):
                         cell.fill = sin_registro_fill
 
             # Ajustar ancho de columnas
-            for col in ws.columns:
+            for i, col in enumerate(ws.columns, 1):
+                col_letter = get_column_letter(i)
                 max_length = max(
-                    (len(str(cell.value)) for cell in col if cell.value),
+                    (len(str(cell.value)) for cell in col
+                     if cell.value and cell.data_type != 'n' or (cell.value and str(cell.value))),
                     default=10
                 )
-                ws.column_dimensions[col[0].column_letter].width = max(max_length + 2, 20)
+                ws.column_dimensions[col_letter].width = max(max_length + 2, 20)
 
     response = HttpResponse(
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -278,12 +280,13 @@ def exportar_asistencia_excel(request):
                         cell.fill = sin_reg_fill
 
             # Ajustar ancho de columnas
-            for col in ws.columns:
+            for i, col in enumerate(ws.columns, 1):
+                col_letter = get_column_letter(i)
                 max_length = max(
                     (len(str(cell.value)) for cell in col if cell.value),
                     default=10
                 )
-                ws.column_dimensions[col[0].column_letter].width = max(max_length + 2, 18)
+                ws.column_dimensions[col_letter].width = max(max_length + 2, 18)
 
     response = HttpResponse(
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
