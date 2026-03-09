@@ -11,6 +11,7 @@ from .utils import obtener_fecha_hora_actual
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
 from openpyxl.worksheet.table import Table, TableStyleInfo
+from openpyxl.utils import get_column_letter
 from datetime import timedelta
 from django.utils import timezone
 import json
@@ -163,62 +164,126 @@ def exportar_resumen_excel(request):
 @user_passes_test(es_staff)
 def exportar_asistencia_excel(request):
     """
-    Exporta todos los registros de asistencia en formato Excel.
-    Incluye información detallada de cada registro.
+    Exporta registros de asistencia en formato Excel.
+    Una hoja por empleado con su información, mostrando todos los días del rango.
+    Columnas: Fecha + una columna por cada tipo de asistencia (hora registrada).
+    Días sin registro: fecha presente, resto vacío con fondo gris.
     """
     wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = "Asistencia"
+    wb.remove(wb.active)
 
-    # Encabezados del excel
-    encabezados = ["Empleado", "Tipo de Asistencia", "Fecha", "Hora", "Descripción", "ID Dispositivo"]
-    ws.append(encabezados)
-
-    # Registros usando el modelo
-    registros = RegistroAsistencia.objects.select_related('empleado', 'tipo') \
-        .order_by('-fecha_registro', '-hora_registro')
-    
-    for reg in registros:
-        fila = [
-            reg.empleado.nombre_completo,
-            reg.tipo.nombre_asistencia,
-            reg.fecha_registro.strftime('%Y-%m-%d'),
-            reg.hora_registro.strftime('%H:%M:%S'),
-            reg.descripcion or '',
-            reg.fingerprint or '',
-        ]
-        ws.append(fila)
-
-    # Ajustar ancho de columnas
-    for col in ws.columns:
-        max_length = max(len(str(cell.value)) for cell in col if cell.value)
-        ws.column_dimensions[col[0].column_letter].width = max_length + 2
-
-    # Estilo encabezado
-    header_font = Font(bold=True, color="FFFFFF")
-    header_fill = PatternFill("solid", fgColor="4F81BD")
-    thin_border = Border(
+    # Estilos
+    titulo_font  = Font(bold=True, color="FFFFFF", size=12)
+    titulo_fill  = PatternFill("solid", fgColor="1F3864")
+    info_font    = Font(bold=True)
+    header_font  = Font(bold=True, color="FFFFFF")
+    header_fill  = PatternFill("solid", fgColor="4F81BD")
+    sin_reg_fill = PatternFill("solid", fgColor="F2F2F2")
+    thin_border  = Border(
         left=Side(style='thin'), right=Side(style='thin'),
         top=Side(style='thin'), bottom=Side(style='thin')
     )
 
-    for cell in ws[1]:
-        cell.font = header_font
-        cell.fill = header_fill
-        cell.border = thin_border
+    # Orden lógico de tipos de asistencia
+    orden_tipos = [
+        'Entrada', 'Inicio Almuerzo', 'Fin Almuerzo', 'Salida',
+        'Entrada por comisión', 'Salida por comisión',
+        'Entrada por otros', 'Salida por otros',
+    ]
+    tipos_db = {t.nombre_asistencia for t in TipoAsistencia.objects.all()}
+    tipos_cols = [n for n in orden_tipos if n in tipos_db]
+    for nombre in tipos_db:
+        if nombre not in tipos_cols:
+            tipos_cols.append(nombre)
 
-    # Tabla solo si hay datos (al menos 1 fila de datos)
-    if ws.max_row > 1:
-        tabla = Table(
-            displayName="RegistroAsistencia",
-            ref=f"A1:F{ws.max_row}"
-        )
-        style = TableStyleInfo(
-            name="TableStyleMedium9", showFirstColumn=False,
-            showLastColumn=False, showRowStripes=True, showColumnStripes=False
-        )
-        tabla.tableStyleInfo = style
-        ws.add_table(tabla)
+    num_cols = 1 + len(tipos_cols)  # Fecha + tipos
+    col_fin = get_column_letter(num_cols)
+
+    # Rango de fechas: primer registro → hoy
+    primera_fecha = RegistroAsistencia.objects.order_by('fecha_registro') \
+        .values_list('fecha_registro', flat=True).first()
+    hoy = timezone.localtime().date()
+    if primera_fecha:
+        dias_total = (hoy - primera_fecha).days + 1
+        todas_las_fechas = [primera_fecha + timedelta(days=i) for i in range(dias_total)]
+    else:
+        todas_las_fechas = [hoy]
+
+    # Lookup rápido: {(empleado_id, fecha): {tipo_nombre: "HH:MM"}}
+    lookup = {}
+    for reg in RegistroAsistencia.objects.select_related('empleado', 'tipo') \
+            .order_by('fecha_registro', 'hora_registro'):
+        key = (reg.empleado.id_empleado, reg.fecha_registro)
+        if key not in lookup:
+            lookup[key] = {}
+        lookup[key][reg.tipo.nombre_asistencia] = reg.hora_registro.strftime('%H:%M')
+
+    empleados = Empleado.objects.order_by('apellidos', 'nombres')
+
+    if not empleados.exists():
+        ws = wb.create_sheet("Sin Datos")
+        ws.append(["No hay empleados registrados."])
+    else:
+        for empleado in empleados:
+            chars_invalidos = ['/', '\\', '?', '*', '[', ']', ':']
+            nombre_hoja = f"{empleado.apellidos}, {empleado.nombres}"
+            for c in chars_invalidos:
+                nombre_hoja = nombre_hoja.replace(c, '-')
+            nombre_hoja = nombre_hoja[:31]
+
+            ws = wb.create_sheet(title=nombre_hoja)
+
+            # Fila 1: Título
+            ws.append(["REGISTRO DE ASISTENCIA"])
+            ws.merge_cells(f'A1:{col_fin}1')
+            ws['A1'].font = titulo_font
+            ws['A1'].fill = titulo_fill
+            ws['A1'].alignment = Alignment(horizontal='center')
+
+            # Filas 2-5: Info del empleado
+            ws.append(["Nombre completo:", empleado.nombre_completo])
+            ws['A2'].font = info_font
+            ws.append(["Apellidos:", empleado.apellidos])
+            ws['A3'].font = info_font
+            ws.append(["Nombres:", empleado.nombres])
+            ws['A4'].font = info_font
+            ws.append(["Código QR:", empleado.codigo_qr or "No asignado"])
+            ws['A5'].font = info_font
+
+            # Fila 6: Espacio en blanco
+            ws.append([])
+
+            # Fila 7: Encabezados de columnas
+            encabezados = ["Fecha"] + tipos_cols
+            ws.append(encabezados)
+            fila_enc = ws.max_row
+            for cell in ws[fila_enc]:
+                cell.font = header_font
+                cell.fill = header_fill
+                cell.border = thin_border
+
+            # Filas de datos: un día por fila
+            for fecha in todas_las_fechas:
+                key = (empleado.id_empleado, fecha)
+                if key in lookup:
+                    data = lookup[key]
+                    fila = [fecha.strftime("%d/%m/%Y")]
+                    for tipo in tipos_cols:
+                        fila.append(data.get(tipo, ""))
+                    ws.append(fila)
+                else:
+                    # Día sin registro: fecha + celdas vacías en gris
+                    ws.append([fecha.strftime("%d/%m/%Y")] + [""] * len(tipos_cols))
+                    for cell in ws[ws.max_row]:
+                        cell.fill = sin_reg_fill
+
+            # Ajustar ancho de columnas
+            for col in ws.columns:
+                max_length = max(
+                    (len(str(cell.value)) for cell in col if cell.value),
+                    default=10
+                )
+                ws.column_dimensions[col[0].column_letter].width = max(max_length + 2, 18)
 
     response = HttpResponse(
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
